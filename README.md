@@ -15,7 +15,7 @@
 `tmcurl` is written in Go. Ensure you have Go installed and then run the following command:
 
 ```sh
-go get github.com/nwiizo/tmcurl
+go install github.com/nwiizo/tmcurl
 ```
 
 ## Usage 🚀
