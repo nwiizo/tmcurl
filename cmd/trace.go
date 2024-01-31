@@ -27,6 +27,7 @@ var (
 	headers    []string
 	body       string
 	count      int
+  currency   int
 	// その他のフラグ変数...
 )
 
@@ -45,6 +46,7 @@ This command also measures the response time for each request and supports repea
 			Headers:    headers,
 			Body:       body,
 			Count:      count,
+      concurrency: concurrency,
 		}
 		internal.TraceAndTimeRequests(config)
 	},
@@ -59,5 +61,6 @@ func init() {
 	traceCmd.Flags().StringArrayVarP(&headers, "header", "H", []string{}, "HTTP headers to include in the request")
 	traceCmd.Flags().StringVarP(&body, "body", "b", "", "HTTP request body")
 	traceCmd.Flags().IntVarP(&count, "count", "c", 1, "Number of times to send the request")
+  traceCmd.Flags().IntVarP(&concurrency, "concurrency", "n", 1, "Number of requests to be made in parallel")
 	// その他のフラグの初期化...
 }
