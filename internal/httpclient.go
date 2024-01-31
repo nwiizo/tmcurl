@@ -10,6 +10,7 @@ import (
 
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // TraceAndTimeRequests sends HTTP requests as per the provided configuration,
@@ -27,13 +28,13 @@ func TraceAndTimeRequests(config Config) {
 		}
 	}()
 
-	// ルートスパンを作成
-	ctx, rootSpan := otel.Tracer("tmcurl").Start(context.Background(), "root-span")
-	defer rootSpan.End()
-
 	client := &http.Client{Transport: otelhttp.NewTransport(http.DefaultTransport)}
 	var wg sync.WaitGroup
 	semaphore := make(chan struct{}, config.Concurrency)
+
+	// ルートスパンを作成
+	ctx, rootSpan := otel.Tracer("tmcurl").Start(context.Background(), "GET - request")
+	defer rootSpan.End()
 
 	for i := 0; i < config.Count; i++ {
 		wg.Add(1)
@@ -56,20 +57,21 @@ func TraceAndTimeRequests(config Config) {
 				}
 			}
 
-			spanName := fmt.Sprintf("%s %s - request-%d", req.Method, req.URL.Path, i)
-			_, span := otel.Tracer("tmcurl").Start(ctx, spanName)
-			req = req.WithContext(ctx)
+			// 子スパンを作成し、HTTP GETリクエストを実行
+			childCtx, childSpan := otel.Tracer("tmcurl").
+				Start(ctx, fmt.Sprintf("HTTP GET - request-%d", i), trace.WithSpanKind(trace.SpanKindClient))
+			req = req.WithContext(childCtx)
 
 			start := time.Now()
 			resp, err := client.Do(req)
 			if err != nil {
 				fmt.Printf("Error sending request %d: %v\n", i, err)
-				span.End()
+				childSpan.End()
 				<-semaphore
 				return
 			}
 			resp.Body.Close()
-			span.End()
+			childSpan.End()
 
 			duration := time.Since(start)
 			fmt.Printf("Response time for request %d: %v\n", i+1, duration)
