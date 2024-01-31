@@ -27,13 +27,17 @@ func TraceAndTimeRequests(config Config) {
 		}
 	}()
 
+	// ルートスパンを作成
+	ctx, rootSpan := otel.Tracer("tmcurl").Start(context.Background(), "root-span")
+	defer rootSpan.End()
+
 	client := &http.Client{Transport: otelhttp.NewTransport(http.DefaultTransport)}
 	var wg sync.WaitGroup
 	semaphore := make(chan struct{}, config.Concurrency)
 
 	for i := 0; i < config.Count; i++ {
 		wg.Add(1)
-		semaphore <- struct{}{} // Acquire a slot
+		semaphore <- struct{}{}
 
 		go func(i int) {
 			defer wg.Done()
@@ -41,7 +45,7 @@ func TraceAndTimeRequests(config Config) {
 			req, err := http.NewRequest(config.Method, config.RequestURL, bodyReader)
 			if err != nil {
 				fmt.Printf("Error creating request: %v\n", err)
-				<-semaphore // Release the slot
+				<-semaphore
 				return
 			}
 
@@ -52,8 +56,8 @@ func TraceAndTimeRequests(config Config) {
 				}
 			}
 
-			ctx, span := otel.Tracer("tmcurl").
-				Start(req.Context(), fmt.Sprintf("http-request-%d", i))
+			spanName := fmt.Sprintf("%s %s - request-%d", req.Method, req.URL.Path, i)
+			_, span := otel.Tracer("tmcurl").Start(ctx, spanName)
 			req = req.WithContext(ctx)
 
 			start := time.Now()
@@ -61,7 +65,7 @@ func TraceAndTimeRequests(config Config) {
 			if err != nil {
 				fmt.Printf("Error sending request %d: %v\n", i, err)
 				span.End()
-				<-semaphore // Release the slot
+				<-semaphore
 				return
 			}
 			resp.Body.Close()
@@ -69,9 +73,9 @@ func TraceAndTimeRequests(config Config) {
 
 			duration := time.Since(start)
 			fmt.Printf("Response time for request %d: %v\n", i+1, duration)
-			<-semaphore // Release the slot
+			<-semaphore
 		}(i)
 	}
 
-	wg.Wait() // Wait for all requests to complete
+	wg.Wait()
 }

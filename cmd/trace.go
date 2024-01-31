@@ -27,7 +27,7 @@ var (
 	headers    []string
 	body       string
 	count      int
-  currency   int
+  concurrency   int
 	// その他のフラグ変数...
 )
 
@@ -46,7 +46,7 @@ This command also measures the response time for each request and supports repea
 			Headers:    headers,
 			Body:       body,
 			Count:      count,
-      concurrency: concurrency,
+      Concurrency: concurrency,
 		}
 		internal.TraceAndTimeRequests(config)
 	},
