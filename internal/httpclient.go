@@ -4,12 +4,15 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/http/httptrace"
 	"strings"
 	"sync"
 	"time"
 
+	"go.opentelemetry.io/contrib/instrumentation/net/http/httptrace/otelhttptrace"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -30,11 +33,13 @@ func TraceAndTimeRequests(config Config) {
 
 	client := &http.Client{Transport: otelhttp.NewTransport(http.DefaultTransport)}
 	var wg sync.WaitGroup
+	var totalDuration time.Duration
+	var successfulRequests int
 	semaphore := make(chan struct{}, config.Concurrency)
 
-	// ルートスパンを作成
-	ctx, rootSpan := otel.Tracer("tmcurl").Start(context.Background(), "GET - request")
-	defer rootSpan.End()
+	// 一回の実行で一つの親スパンを作成
+	ctx, parentSpan := otel.Tracer("tmcurl").Start(context.Background(), "tmcurl-request")
+	defer parentSpan.End()
 
 	for i := 0; i < config.Count; i++ {
 		wg.Add(1)
@@ -45,7 +50,7 @@ func TraceAndTimeRequests(config Config) {
 			bodyReader := strings.NewReader(config.Body)
 			req, err := http.NewRequest(config.Method, config.RequestURL, bodyReader)
 			if err != nil {
-				fmt.Printf("Error creating request: %v\n", err)
+				fmt.Printf("Error creating request %d: %v\n", i, err)
 				<-semaphore
 				return
 			}
@@ -57,27 +62,41 @@ func TraceAndTimeRequests(config Config) {
 				}
 			}
 
-			// 子スパンを作成し、HTTP GETリクエストを実行
-			childCtx, childSpan := otel.Tracer("tmcurl").
-				Start(ctx, fmt.Sprintf("HTTP GET - request-%d", i), trace.WithSpanKind(trace.SpanKindClient))
-			req = req.WithContext(childCtx)
+			spanName := fmt.Sprintf("%s %s - request-%d", req.Method, req.URL.Path, i)
+			traceCtx, span := otel.Tracer("tmcurl").
+				Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindClient))
+
+			// otelhttptraceを使用してHTTPトレースを追加
+			traceCtx = httptrace.WithClientTrace(traceCtx, otelhttptrace.NewClientTrace(traceCtx))
+			req = req.WithContext(traceCtx)
 
 			start := time.Now()
 			resp, err := client.Do(req)
+			duration := time.Since(start)
 			if err != nil {
 				fmt.Printf("Error sending request %d: %v\n", i, err)
-				childSpan.End()
-				<-semaphore
-				return
+				span.RecordError(err)
+			} else {
+				span.SetAttributes(
+					attribute.Int("http.status_code", resp.StatusCode),
+					attribute.String("http.url", req.URL.String()),
+					attribute.String("http.method", req.Method),
+				)
+				resp.Body.Close()
+				successfulRequests++
 			}
-			resp.Body.Close()
-			childSpan.End()
-
-			duration := time.Since(start)
-			fmt.Printf("Response time for request %d: %v\n", i+1, duration)
+			span.End()
+			totalDuration += duration
 			<-semaphore
 		}(i)
 	}
 
 	wg.Wait()
+	avgDuration := totalDuration / time.Duration(successfulRequests)
+	fmt.Printf(
+		"Total requests: %d, Successful: %d, Average response time: %v\n",
+		config.Count,
+		successfulRequests,
+		avgDuration,
+	)
 }
