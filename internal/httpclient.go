@@ -20,7 +20,11 @@ func TraceAndTimeRequests(config Config) {
 		fmt.Printf("Error setting up tracer: %v\n", err)
 		return
 	}
-	defer tp.Shutdown(context.Background())
+	defer func() {
+		if err := tp.Shutdown(context.Background()); err != nil {
+			fmt.Printf("Error shutting down tracer: %v\n", err)
+		}
+	}()
 
 	client := &http.Client{Transport: otelhttp.NewTransport(http.DefaultTransport)}
 
