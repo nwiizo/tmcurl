@@ -16,7 +16,6 @@ limitations under the License.
 package cmd
 
 import (
-	"fmt"
 	"github.com/nwiizo/tmcurl/internal"
 	"github.com/spf13/cobra"
 )

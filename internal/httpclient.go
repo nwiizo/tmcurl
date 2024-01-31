@@ -1,24 +1,31 @@
 package internal
 
 import (
+	"context"
 	"fmt"
-	"io"
 	"net/http"
 	"strings"
 	"time"
+
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"go.opentelemetry.io/otel"
 )
 
 // TraceAndTimeRequests sends HTTP requests as per the provided configuration,
 // traces them, and measures response times.
 func TraceAndTimeRequests(config Config) {
-	client := &http.Client{}
+	// OpenTelemetryのトレーサープロバイダーをセットアップ
+	tp, err := setupTracer(config.Endpoint)
+	if err != nil {
+		fmt.Printf("Error setting up tracer: %v\n", err)
+		return
+	}
+	defer tp.Shutdown(context.Background())
+
+	client := &http.Client{Transport: otelhttp.NewTransport(http.DefaultTransport)}
 
 	for i := 0; i < config.Count; i++ {
-		var bodyReader io.Reader
-		if config.Body != "" {
-			bodyReader = strings.NewReader(config.Body)
-		}
-
+		bodyReader := strings.NewReader(config.Body)
 		req, err := http.NewRequest(config.Method, config.RequestURL, bodyReader)
 		if err != nil {
 			fmt.Printf("Error creating request: %v\n", err)
@@ -32,13 +39,18 @@ func TraceAndTimeRequests(config Config) {
 			}
 		}
 
+		ctx, span := otel.Tracer("tmcurl").Start(req.Context(), "http-request")
+		req = req.WithContext(ctx)
+
 		start := time.Now()
 		resp, err := client.Do(req)
 		if err != nil {
 			fmt.Printf("Error sending request: %v\n", err)
+			span.End()
 			continue
 		}
 		resp.Body.Close()
+		span.End()
 
 		duration := time.Since(start)
 		fmt.Printf("Response time for request %d: %v\n", i+1, duration)
