@@ -1,6 +1,6 @@
 services:
   jaeger:
-    image: jaegertracing/all-in-one:1.54 # Use Jaeger all-in-one container image version 1.53
+    image: jaegertracing/all-in-one:1.60 # Use Jaeger all-in-one container image version 1.53
     container_name: jaegertracing # Set the container name to jaegertracing
     ports:
       - "6831:6831/udp" # Jaeger Thrift Compact over UDP port for client reporting
