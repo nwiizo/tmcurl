@@ -3,7 +3,7 @@ module github.com/nwiizo/tmcurl
 go 1.22.0
 
 require (
-	github.com/spf13/cobra v1.8.1
+	github.com/spf13/cobra v1.9.1
 	github.com/spf13/viper v1.18.2
 	go.opentelemetry.io/contrib/instrumentation/net/http/httptrace/otelhttptrace v0.48.0
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.48.0
@@ -32,7 +32,7 @@ require (
 	github.com/sourcegraph/conc v0.3.0 // indirect
 	github.com/spf13/afero v1.11.0 // indirect
 	github.com/spf13/cast v1.6.0 // indirect
-	github.com/spf13/pflag v1.0.5 // indirect
+	github.com/spf13/pflag v1.0.6 // indirect
 	github.com/subosito/gotenv v1.6.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.29.0 // indirect
 	go.opentelemetry.io/otel/metric v1.29.0 // indirect
